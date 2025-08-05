@@ -67,3 +67,92 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Retro pixel animations and effects */
+@keyframes gridMove {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(40px, 40px); }
+}
+
+@keyframes pixelFloat {
+  0%, 100% { 
+    transform: translateY(0px) rotate(0deg); 
+    opacity: 0.6;
+  }
+  50% { 
+    transform: translateY(-20px) rotate(180deg); 
+    opacity: 0.2;
+  }
+}
+
+@keyframes floatUpDown {
+  0%, 100% { 
+    transform: translateY(0px) rotate(0deg); 
+  }
+  25% { 
+    transform: translateY(-10px) rotate(1deg); 
+  }
+  50% { 
+    transform: translateY(-5px) rotate(-1deg); 
+  }
+  75% { 
+    transform: translateY(-15px) rotate(0.5deg); 
+  }
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 5px currentColor; }
+  50% { box-shadow: 0 0 20px currentColor, 0 0 30px currentColor; }
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+/* Custom scrollbar for retro feel */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(17, 24, 39, 0.8);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #8b5cf6, #06b6d4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom, #a78bfa, #22d3ee);
+}
+
+/* Pixel perfect font rendering */
+.font-mono {
+  font-feature-settings: "liga" 0;
+  font-variant-ligatures: none;
+}
+
+/* Glow effects */
+.glow-purple {
+  animation: glowPulse 2s ease-in-out infinite;
+  color: #a855f7;
+}
+
+.glow-cyan {
+  animation: glowPulse 2s ease-in-out infinite;
+  color: #06b6d4;
+}
+
+/* Selection styling */
+::selection {
+  background: rgba(168, 85, 247, 0.3);
+  color: #ffffff;
+}
+
+/* Focus indicators for accessibility */
+.focus-visible:focus {
+  outline: 2px solid #a855f7;
+  outline-offset: 2px;
+}
