@@ -2,21 +2,25 @@
 
 import React, { useState, useCallback } from 'react';
 import { usePromptHistory, useAppState } from '@/context/AppContext';
+import { GameTypeSelector, GameType } from './GameTypeSelector';
 
 interface PromptInputProps {
-  onSubmit: (prompt: string) => void;
+  onSubmit: (prompt: string, gameType: GameType) => void;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  showGameTypeSelector?: boolean;
 }
 
 export function PromptInput({ 
   onSubmit, 
   placeholder = "Describe your dream game...", 
   disabled = false,
-  className = ""
+  className = "",
+  showGameTypeSelector = true
 }: PromptInputProps) {
   const [prompt, setPrompt] = useState('');
+  const [gameType, setGameType] = useState<GameType>('2d');
   const { addPromptToHistory } = usePromptHistory();
   const { isLoading } = useAppState();
 
@@ -27,11 +31,11 @@ export function PromptInput({
 
     // Add to history and trigger submission
     addPromptToHistory(prompt.trim());
-    onSubmit(prompt.trim());
+    onSubmit(prompt.trim(), gameType);
     
     // Clear the input
     setPrompt('');
-  }, [prompt, disabled, isLoading, addPromptToHistory, onSubmit]);
+  }, [prompt, gameType, disabled, isLoading, addPromptToHistory, onSubmit]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -41,6 +45,16 @@ export function PromptInput({
 
   return (
     <form onSubmit={handleSubmit} className={`w-full ${className}`}>
+      {/* Game Type Selector */}
+      {showGameTypeSelector && (
+        <div className="mb-6">
+          <GameTypeSelector
+            selectedType={gameType}
+            onTypeChange={setGameType}
+          />
+        </div>
+      )}
+      
       <div className="relative">
         <textarea
           value={prompt}

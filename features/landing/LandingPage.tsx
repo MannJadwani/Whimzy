@@ -1,26 +1,42 @@
 "use client";
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession, signIn } from 'next-auth/react';
 import { PromptInput } from '@/components/ui/PromptInput';
 import { PixelBackground } from '@/components/ui/PixelBackground';
 import { FloatingImages } from '@/components/ui/FloatingImages';
 import { RetroNavbar } from '@/components/ui/RetroNavbar';
+import { SignInModal } from '@/components/ui/SignInModal';
 import { LoadingOverlay } from '@/components/ui/LoadingSpinner';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { useAppState } from '@/context/AppContext';
 import { useGameGeneration } from '@/hooks/useGameGeneration';
+import { GameType } from '@/components/ui/GameTypeSelector';
 
 
 
 export function LandingPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const { isLoading, error, clearError } = useAppState();
   const { generateGame } = useGameGeneration();
+  
+  const [showSignInModal, setShowSignInModal] = useState(false);
+  const [pendingPrompt, setPendingPrompt] = useState<string>('');
+  const [pendingGameType, setPendingGameType] = useState<GameType>('2d');
 
-  const handlePromptSubmit = useCallback(async (prompt: string) => {
+  const handlePromptSubmit = useCallback(async (prompt: string, gameType: GameType) => {
+    if (!session) {
+      // Store the prompt and game type, then show signin modal
+      setPendingPrompt(prompt);
+      setPendingGameType(gameType);
+      setShowSignInModal(true);
+      return;
+    }
+    
     try {
-      const game = await generateGame(prompt);
+      const game = await generateGame(prompt, gameType);
       
       console.log('Generated game:', game);
       
@@ -31,7 +47,13 @@ export function LandingPage() {
       // Error handling is done in the hook
       console.error('Game generation failed:', error);
     }
-  }, [generateGame, router]);
+  }, [generateGame, router, session]);
+
+  const handleCloseModal = useCallback(() => {
+    setShowSignInModal(false);
+    setPendingPrompt('');
+    setPendingGameType('2d');
+  }, []);
 
 
 
@@ -101,6 +123,14 @@ export function LandingPage() {
           </div>
         </div>
       </div>
+
+      {/* Sign In Modal */}
+      <SignInModal
+        isOpen={showSignInModal}
+        onClose={handleCloseModal}
+        prompt={pendingPrompt}
+        gameType={pendingGameType}
+      />
     </div>
   );
 }

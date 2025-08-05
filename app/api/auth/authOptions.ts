@@ -1,6 +1,5 @@
 import NextAuth, { AuthOptions, DefaultSession } from "next-auth"
 import GoogleProvider from "next-auth/providers/google";
-import GitHubProvider from "next-auth/providers/github";
 import {z} from "zod"
 import { prisma } from "@/lib/prisma"
 import { Provider } from '@prisma/client'
@@ -17,12 +16,15 @@ export const authOptions: AuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID ?? '',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? ''
-    }),
-    GitHubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID ?? '',
-      clientSecret: process.env.GITHUB_CLIENT_SECRET ?? ''
     })
   ],
+  pages: {
+    signIn: '/auth/signin',
+    error: '/auth/error',
+  },
+  session: {
+    strategy: 'jwt',
+  },
   callbacks: {
     async signIn(params) {
       try {
@@ -45,6 +47,25 @@ export const authOptions: AuthOptions = {
         console.log(error)
       }
       return true
+    },
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id
+      }
+      return token
+    },
+    async session({ session, token }) {
+      if (token) {
+        session.user.id = token.id as string
+      }
+      return session
+    },
+    async redirect({ url, baseUrl }) {
+      // Allows relative callback URLs
+      if (url.startsWith("/")) return `${baseUrl}${url}`
+      // Allows callback URLs on the same origin
+      else if (new URL(url).origin === baseUrl) return url
+      return baseUrl
     }
    }
 }   

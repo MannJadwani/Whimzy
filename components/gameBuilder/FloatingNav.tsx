@@ -4,7 +4,12 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { RetroButton } from '@/components/ui/RetroButton';
 
-export function FloatingNav() {
+interface FloatingNavProps {
+  gameCode?: string;
+  onCopyCode?: () => void;
+}
+
+export function FloatingNav({ gameCode, onCopyCode }: FloatingNavProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -44,6 +49,18 @@ export function FloatingNav() {
               </RetroButton>
             </Link>
             
+            <Link href="/my-games" onClick={() => setIsOpen(false)}>
+              <RetroButton variant="secondary" size="sm" className="w-full">
+                📁 MY GAMES
+              </RetroButton>
+            </Link>
+            
+            <Link href="/settings" onClick={() => setIsOpen(false)}>
+              <RetroButton variant="accent" size="sm" className="w-full">
+                ⚙️ SETTINGS
+              </RetroButton>
+            </Link>
+            
             <Link href="/pricing" onClick={() => setIsOpen(false)}>
               <RetroButton variant="primary" size="sm" className="w-full">
                 💎 PRICING
@@ -60,8 +77,16 @@ export function FloatingNav() {
             <RetroButton variant="secondary" size="sm" className="w-full text-xs">
               💾 SAVE PROJECT
             </RetroButton>
-            <RetroButton variant="accent" size="sm" className="w-full text-xs">
-              📤 EXPORT GAME
+            <RetroButton 
+              variant="accent" 
+              size="sm" 
+              className="w-full text-xs"
+              onClick={() => {
+                onCopyCode?.();
+                setIsOpen(false);
+              }}
+            >
+              📋 COPY CODE
             </RetroButton>
           </div>
         </div>

@@ -7,7 +7,7 @@ interface CodeRunnerProps {
   gameCode: string;
   title?: string;
   onSave?: () => void;
-  onExport?: () => void;
+  onCopyCode?: () => void;
   onDownload?: () => void;
 }
 
@@ -15,7 +15,7 @@ export function CodeRunner({
   gameCode, 
   title = "Game Preview",
   onSave,
-  onExport,
+  onCopyCode,
   onDownload
 }: CodeRunnerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -69,9 +69,9 @@ export function CodeRunner({
               SAVE
             </RetroButton>
           )}
-          {onExport && (
-            <RetroButton size="sm" variant="accent" onClick={onExport}>
-              EXPORT
+          {onCopyCode && (
+            <RetroButton size="sm" variant="accent" onClick={onCopyCode}>
+              📋 COPY CODE
             </RetroButton>
           )}
           {onDownload && (

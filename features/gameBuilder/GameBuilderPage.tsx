@@ -1,12 +1,15 @@
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { CodeRunner } from '@/components/gameBuilder/CodeRunner';
 import { ChatInterface } from '@/components/gameBuilder/ChatInterface';
 import { FloatingNav } from '@/components/gameBuilder/FloatingNav';
 import { PixelBackground } from '@/components/ui/PixelBackground';
 import { LoadingOverlay } from '@/components/ui/LoadingSpinner';
 import { useGames, useAppState } from '@/context/AppContext';
+import { useGameGeneration } from '@/hooks/useGameGeneration';
+import { useGameSession } from '@/hooks/useGameSession';
 
 interface ChatMessage {
   id: string;
@@ -15,12 +18,23 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-export function GameBuilderPage() {
+interface GameBuilderPageProps {
+  gameId?: string;
+}
+
+export function GameBuilderPage({ gameId }: GameBuilderPageProps) {
   const { currentGame } = useGames();
   const { isLoading } = useAppState();
+  const { generateGame } = useGameGeneration();
+  const searchParams = useSearchParams();
+  const [hasProcessedPrompt, setHasProcessedPrompt] = useState(false);
   
-  // Sample game code for demonstration
-  const [gameCode, setGameCode] = useState(`
+  // Use game session hook if gameId is provided
+  const gameSession = useGameSession(gameId || '');
+  const isSessionLoading = gameSession.isLoading;
+  
+  // Use session data or fallback for game code
+  const gameCode = gameSession.session?.gameCode || `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -87,61 +101,142 @@ export function GameBuilderPage() {
     </div>
 </body>
 </html>
-  `);
+  `;
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      type: 'system',
-      content: 'Welcome to Whimzy Game Builder! Your game preview is ready.',
-      timestamp: new Date()
-    },
-    {
-      id: '2',
-      type: 'ai',
-      content: 'Hi! I\'ve created a basic game template for you. You can ask me to modify it in any way - change colors, add features, or completely redesign it. What would you like to do?',
-      timestamp: new Date()
+  // Use session messages
+  const messages = gameSession.session?.messages || [];
+  const sessionTitle = gameSession.session?.title || `Game ${gameId}`;
+
+  // Handle prompt from URL (from landing page signin flow)
+  useEffect(() => {
+    const promptFromUrl = searchParams.get('prompt');
+    if (promptFromUrl && promptFromUrl.trim() && !hasProcessedPrompt && !isSessionLoading && gameSession.session) {
+      setHasProcessedPrompt(true);
+      
+      // Add the user's original prompt to chat using session
+      gameSession.addMessage({
+        type: 'user',
+        content: promptFromUrl
+      });
+      
+      // Generate game based on the prompt
+      generateGame(promptFromUrl).then((game) => {
+        // Update the session with the generated game code
+        if (game?.gameCode) {
+          gameSession.updateGameCode(game.gameCode);
+        }
+        
+        // Add AI response using session
+        gameSession.addMessage({
+          type: 'ai',
+          content: `Great! I've created a game based on your idea: "${promptFromUrl}". You can see the game above and ask me to make any changes or improvements!`
+        });
+      }).catch((error) => {
+        console.error('Error generating game from prompt:', error);
+        gameSession.addMessage({
+          type: 'ai',
+          content: `I encountered an error while creating your game. Let me try a different approach. Can you describe your game idea again?`
+        });
+      });
+      
+      // Clear the prompt from URL to avoid re-triggering
+      if (typeof window !== 'undefined' && window.history.replaceState) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('prompt');
+        window.history.replaceState({}, '', url.toString());
+      }
     }
-  ]);
+  }, [searchParams, generateGame, hasProcessedPrompt, isSessionLoading, gameSession]);
 
   const [isChatLoading, setIsChatLoading] = useState(false);
 
   const handleSendMessage = useCallback(async (message: string) => {
-    // Add user message
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
+    if (!gameSession.session) return;
+
+    // Add user message using session
+    gameSession.addMessage({
       type: 'user',
-      content: message,
-      timestamp: new Date()
-    };
-    setMessages(prev => [...prev, userMessage]);
+      content: message
+    });
+    
     setIsChatLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        type: 'ai',
-        content: `I understand you want to: "${message}". I'm working on updating your game now! The changes will appear in the preview shortly.`,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, aiMessage]);
-      setIsChatLoading(false);
+    try {
+      // Send message to Gemini API
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message,
+          gameCode,
+          chatHistory: messages.slice(-10) // Send last 10 messages for context
+        }),
+      });
 
-      // TODO: Integrate with actual AI game generation logic
-      console.log('User requested:', message);
-    }, 2000);
-  }, []);
+      if (!response.ok) {
+        throw new Error('Failed to get AI response');
+      }
+
+      const data = await response.json();
+      
+      // Add AI response using session
+      gameSession.addMessage({
+        type: 'ai',
+        content: data.response
+      });
+
+      // If the response contains game code, update the game
+      let codeMatch = data.response.match(/```html\n([\s\S]*?)\n```/);
+      if (!codeMatch) {
+        // Try without language specifier
+        codeMatch = data.response.match(/```\n([\s\S]*?)\n```/);
+      }
+      if (!codeMatch) {
+        // Try with different HTML patterns
+        codeMatch = data.response.match(/```html([\s\S]*?)```/);
+      }
+      
+      if (codeMatch && codeMatch[1]) {
+        const cleanCode = codeMatch[1].trim();
+        if (cleanCode.includes('<html') || cleanCode.includes('<!DOCTYPE')) {
+          gameSession.updateGameCode(cleanCode);
+        }
+      }
+
+    } catch (error) {
+      console.error('Error sending message:', error);
+      gameSession.addMessage({
+        type: 'ai',
+        content: 'Sorry, I encountered an error processing your request. Please try again.'
+      });
+    } finally {
+      setIsChatLoading(false);
+    }
+  }, [gameSession, gameCode, messages]);
 
   const handleSave = useCallback(() => {
     console.log('Saving game...');
     // TODO: Implement save functionality
   }, []);
 
-  const handleExport = useCallback(() => {
-    console.log('Exporting game...');
-    // TODO: Implement export functionality
-  }, []);
+  const handleCopyCode = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(gameCode);
+      // You could add a toast notification here if you have one
+      console.log('Game code copied to clipboard!');
+    } catch (err) {
+      console.error('Failed to copy code:', err);
+      // Fallback: select and copy manually
+      const textArea = document.createElement('textarea');
+      textArea.value = gameCode;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+    }
+  }, [gameCode]);
 
   const handleDownload = useCallback(() => {
     console.log('Downloading game...');
@@ -157,10 +252,23 @@ export function GameBuilderPage() {
     URL.revokeObjectURL(url);
   }, [gameCode]);
 
+  // Show loading if session is still loading
+  if (isSessionLoading) {
+    return (
+      <div className="h-screen relative overflow-hidden bg-gray-900 flex items-center justify-center">
+        <PixelBackground />
+        <div className="text-white font-mono text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full mx-auto mb-4" />
+          Loading game session...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen relative overflow-hidden">
       <PixelBackground />
-      <FloatingNav />
+      <FloatingNav gameCode={gameCode} onCopyCode={handleCopyCode} />
       
       {isLoading && <LoadingOverlay message="LOADING GAME BUILDER..." />}
       
@@ -171,7 +279,7 @@ export function GameBuilderPage() {
              gameCode={gameCode}
              title={currentGame?.title || "Game Preview"}
              onSave={handleSave}
-             onExport={handleExport}
+             onCopyCode={handleCopyCode}
              onDownload={handleDownload}
            />
          </div>
