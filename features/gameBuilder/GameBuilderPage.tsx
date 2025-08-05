@@ -110,6 +110,8 @@ export function GameBuilderPage({ gameId }: GameBuilderPageProps) {
   // Handle prompt from URL (from landing page signin flow)
   useEffect(() => {
     const promptFromUrl = searchParams.get('prompt');
+    const gameTypeFromUrl = searchParams.get('gameType') || '2d';
+    
     if (promptFromUrl && promptFromUrl.trim() && !hasProcessedPrompt && !isSessionLoading && gameSession.session) {
       setHasProcessedPrompt(true);
       
@@ -119,8 +121,8 @@ export function GameBuilderPage({ gameId }: GameBuilderPageProps) {
         content: promptFromUrl
       });
       
-      // Generate game based on the prompt
-      generateGame(promptFromUrl).then((game) => {
+      // Generate game based on the prompt and game type
+      generateGame(promptFromUrl, gameTypeFromUrl).then((game) => {
         // Update the session with the generated game code
         if (game?.gameCode) {
           gameSession.updateGameCode(game.gameCode);
@@ -139,10 +141,11 @@ export function GameBuilderPage({ gameId }: GameBuilderPageProps) {
         });
       });
       
-      // Clear the prompt from URL to avoid re-triggering
+      // Clear the prompt and gameType from URL to avoid re-triggering
       if (typeof window !== 'undefined' && window.history.replaceState) {
         const url = new URL(window.location.href);
         url.searchParams.delete('prompt');
+        url.searchParams.delete('gameType');
         window.history.replaceState({}, '', url.toString());
       }
     }
@@ -181,13 +184,7 @@ export function GameBuilderPage({ gameId }: GameBuilderPageProps) {
 
       const data = await response.json();
       
-      // Add AI response using session
-      gameSession.addMessage({
-        type: 'ai',
-        content: data.response
-      });
-
-      // If the response contains game code, update the game
+      // Extract code and explanation from the structured response
       let codeMatch = data.response.match(/```html\n([\s\S]*?)\n```/);
       if (!codeMatch) {
         // Try without language specifier
@@ -198,12 +195,33 @@ export function GameBuilderPage({ gameId }: GameBuilderPageProps) {
         codeMatch = data.response.match(/```html([\s\S]*?)```/);
       }
       
+      // Apply code changes to the game preview
+      let codeUpdated = false;
       if (codeMatch && codeMatch[1]) {
         const cleanCode = codeMatch[1].trim();
-        if (cleanCode.includes('<html') || cleanCode.includes('<!DOCTYPE')) {
+        if (cleanCode.includes('<html') || cleanCode.includes('<!DOCTYPE') || cleanCode.length > 100) {
           gameSession.updateGameCode(cleanCode);
+          codeUpdated = true;
         }
       }
+      
+      // Extract the explanation part (everything before the first code block)
+      let explanation = data.response;
+      const codeBlockStart = explanation.search(/```/);
+      if (codeBlockStart !== -1) {
+        explanation = explanation.substring(0, codeBlockStart).trim();
+      }
+      
+      // Clean up any remaining artifacts
+      explanation = explanation.replace(/\n\s*\n\s*\n/g, '\n\n').trim();
+      
+      // Add the explanation to chat with confirmation if code was updated
+      const finalMessage = explanation + (codeUpdated ? '\n\n✅ Game updated! Check the preview above to see your changes.' : '');
+      
+      gameSession.addMessage({
+        type: 'ai',
+        content: finalMessage || 'I\'ve processed your request. Let me know if you need any adjustments!'
+      });
 
     } catch (error) {
       console.error('Error sending message:', error);

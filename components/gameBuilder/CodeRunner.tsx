@@ -22,6 +22,7 @@ export function CodeRunner({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+
   useEffect(() => {
     if (iframeRef.current && gameCode) {
       try {
@@ -53,6 +54,18 @@ export function CodeRunner({
     setIsLoading(false);
   };
 
+  const handleFullscreenPlay = () => {
+    // Open game in a new window for true fullscreen experience
+    const newWindow = window.open('', '_blank', 'fullscreen=yes,scrollbars=no,menubar=no,toolbar=no,location=no,status=no');
+    if (newWindow) {
+      newWindow.document.write(gameCode);
+      newWindow.document.close();
+      newWindow.focus();
+    }
+  };
+
+
+
   return (
     <div className="h-full flex flex-col bg-gray-900/80 backdrop-blur-sm border-2 border-purple-400/50 rounded-lg overflow-hidden">
       {/* Header */}
@@ -64,6 +77,9 @@ export function CodeRunner({
         
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
+          <RetroButton size="sm" variant="primary" onClick={handleFullscreenPlay}>
+            ▶️ PLAY FULLSCREEN
+          </RetroButton>
           {onSave && (
             <RetroButton size="sm" variant="secondary" onClick={onSave}>
               SAVE
@@ -83,9 +99,19 @@ export function CodeRunner({
       </div>
 
       {/* Game Preview */}
-      <div className="flex-1 relative bg-gray-950">
+      <div className="flex-1 relative bg-gray-950 group cursor-pointer" onClick={handleFullscreenPlay}>
+        {/* Hover Overlay */}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center z-10 opacity-0 group-hover:opacity-100">
+          <div className="bg-black/80 px-6 py-3 rounded-lg border border-purple-400/50">
+            <div className="flex items-center gap-3 text-white font-mono">
+              <span className="text-2xl">▶️</span>
+              <span className="font-bold">Click to Play Fullscreen</span>
+            </div>
+          </div>
+        </div>
+
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80">
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 z-20">
             <div className="text-center">
               <div className="w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
               <p className="text-gray-300 font-mono text-sm">Loading game...</p>
@@ -94,7 +120,7 @@ export function CodeRunner({
         )}
 
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80">
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 z-20">
             <div className="text-center">
               <div className="w-12 h-12 bg-red-500/20 rounded-lg flex items-center justify-center mb-3">
                 <span className="text-red-400 text-xl">⚠</span>
@@ -106,7 +132,7 @@ export function CodeRunner({
 
         <iframe
           ref={iframeRef}
-          className="w-full h-full border-0"
+          className="w-full h-full border-0 pointer-events-none"
           onLoad={handleIframeLoad}
           onError={handleIframeError}
           sandbox="allow-scripts allow-same-origin"
@@ -121,6 +147,8 @@ export function CodeRunner({
           <span>Sandbox: Enabled</span>
         </div>
       </div>
+
+
     </div>
   );
 }

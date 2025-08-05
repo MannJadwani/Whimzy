@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { RetroButton } from '@/components/ui/RetroButton';
+import { WhimzyTerminal } from '@/components/ui/WhimzyTerminal';
 
 interface ChatMessage {
   id: string;

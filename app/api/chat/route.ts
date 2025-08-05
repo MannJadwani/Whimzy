@@ -20,25 +20,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
-    // Create a context-aware prompt for game development
-    const systemPrompt = `You are a helpful AI assistant specialized in creating and modifying HTML5 games. You help users create, update, and improve their games based on their requests.
+    // Create a context-aware prompt for iterative game development
+    const systemPrompt = `You are a helpful AI game development assistant that modifies and improves existing games. You will receive the current game code and a user request for changes. Your job is to:
 
-Current game code:
+1. Analyze the current game code to understand its structure and mechanics
+2. Implement the requested changes or improvements
+3. Provide both updated code AND a planning explanation
+
+Current Game Code:
 \`\`\`html
-${gameCode || 'No game code provided yet'}
+${gameCode || '<!-- No game code yet - this will be a new game creation -->'}
 \`\`\`
 
-Guidelines:
-1. When creating games, provide complete HTML files with embedded CSS and JavaScript
-2. Use modern JavaScript features and HTML5 canvas when appropriate
-3. Make games interactive and fun
-4. Include proper styling and animations
-5. Keep code clean and well-commented
-6. For modifications, explain what you're changing and why
-7. Always respond in a friendly, encouraging tone
-8. If asked to create a new game, provide a complete working example
+User's Request: ${message}
 
-User's request: ${message}`;
+Please respond with:
+1. A brief explanation of your planning approach and what you're changing
+2. The complete updated HTML game code in a code block
+
+Guidelines:
+- Keep the existing game structure and improve upon it
+- Maintain backward compatibility where possible
+- Explain your technical decisions briefly
+- Ensure the game remains playable and fun
+- If this is a new game request, create a complete game from scratch
+- Always provide the full HTML code, ready to run
+
+Format your response like this:
+[Your planning explanation here]
+
+\`\`\`html
+[Complete updated game code here]
+\`\`\``;
 
     // Build conversation history
     const conversationHistory = chatHistory?.map((msg: any) => 

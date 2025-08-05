@@ -17,7 +17,7 @@ const gameTypeOptions: GameTypeOption[] = [
   {
     id: '2d',
     title: '2D Classic',
-    description: 'Simple 2D games using HTML, CSS, and JavaScript',
+    description: '',
     icon: '🎮',
     tech: 'HTML/CSS/JS',
     features: ['Quick to build', 'Lightweight', 'Great for beginners', 'Retro style']
@@ -25,7 +25,7 @@ const gameTypeOptions: GameTypeOption[] = [
   {
     id: 'advanced-2d',
     title: 'Advanced 2D',
-    description: 'Feature-rich 2D games with Phaser.js framework',
+    description: '',
     icon: '🚀',
     tech: 'Phaser.js',
     features: ['Physics engine', 'Animations', 'Sound system', 'Advanced features']
@@ -33,7 +33,7 @@ const gameTypeOptions: GameTypeOption[] = [
   {
     id: '3d',
     title: '3D Games',
-    description: 'Immersive 3D experiences with Three.js',
+    description: '',
     icon: '🌐',
     tech: 'Three.js',
     features: ['3D graphics', 'WebGL powered', 'Realistic physics', 'Modern visuals']
@@ -70,25 +70,9 @@ export function GameTypeSelector({ selectedType, onTypeChange, className = '' }:
               <div className="absolute top-2 right-2 w-3 h-3 bg-purple-400 rounded-full animate-pulse" />
             )}
             
-            <div className="flex items-center gap-3 mb-3">
+            <div className="flex items-center justify-center gap-3">
               <span className="text-2xl">{option.icon}</span>
-              <div>
-                <h4 className="font-mono font-bold text-white text-sm">{option.title}</h4>
-                <p className="text-xs text-gray-400 font-mono">{option.tech}</p>
-              </div>
-            </div>
-            
-            <p className="text-sm text-gray-300 font-mono mb-3 leading-relaxed">
-              {option.description}
-            </p>
-            
-            <div className="space-y-1">
-              {option.features.map((feature, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <div className="w-1 h-1 bg-cyan-400 rounded-full" />
-                  <span className="text-xs text-gray-400 font-mono">{feature}</span>
-                </div>
-              ))}
+              <h4 className="font-mono font-bold text-white text-lg">{option.title}</h4>
             </div>
           </button>
         ))}
