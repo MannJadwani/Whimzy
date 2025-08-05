@@ -9,6 +9,7 @@ import { FloatingImages } from '@/components/ui/FloatingImages';
 import { RetroNavbar } from '@/components/ui/RetroNavbar';
 import { SignInModal } from '@/components/ui/SignInModal';
 import { LoadingOverlay } from '@/components/ui/LoadingSpinner';
+import { WhimzyTerminal } from '@/components/ui/WhimzyTerminal';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { useAppState } from '@/context/AppContext';
 import { useGameGeneration } from '@/hooks/useGameGeneration';
@@ -63,7 +64,8 @@ export function LandingPage() {
       <FloatingImages />
       <RetroNavbar />
       
-      {isLoading && <LoadingOverlay message="GENERATING YOUR GAME..." />}
+      {/* Terminal Loading Popup for Game Generation */}
+      <WhimzyTerminal isVisible={isLoading} />
       
       <div className="relative z-10 container mx-auto px-4 py-4 ">
         <div className="flex flex-col items-center justify-center min-h-screen max-w-6xl mx-auto">

@@ -7,7 +7,10 @@ import { GamePreviewModal } from '@/components/explore/GamePreviewModal';
 import { PixelBackground } from '@/components/ui/PixelBackground';
 import { RetroNavbar } from '@/components/ui/RetroNavbar';
 import { RetroButton } from '@/components/ui/RetroButton';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useGames } from '@/context/AppContext';
+import { usePublicGames } from '@/hooks/usePublicGames';
+import { DatabaseGame } from '@/hooks/useUserGames';
 
 // Hardcoded sample games data
 const SAMPLE_GAMES: GameData[] = [
@@ -145,14 +148,33 @@ body { margin: 0; background: linear-gradient(45deg, #8b4513, #d2691e); color: #
   }
 ];
 
+// Convert DatabaseGame to GameData format for compatibility
+const convertToGameData = (dbGame: DatabaseGame): GameData => ({
+  id: dbGame.id,
+  title: dbGame.title,
+  description: dbGame.description || '',
+  author: dbGame.user.name || 'Anonymous',
+  thumbnail: dbGame.thumbnailUrl || '',
+  gameType: dbGame.gameType === 'THREE_D' ? '3D' : '2D',
+  tags: [], // Could be derived from description or stored separately
+  plays: dbGame.plays,
+  likes: dbGame.likes,
+  createdAt: dbGame.createdAt,
+  gameCode: dbGame.gameCode || ''
+});
+
 export function ExplorePage() {
   const router = useRouter();
   const { setCurrentGame } = useGames();
+  const { games: dbGames, isLoading, error, playGame, refetch } = usePublicGames();
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [previewGame, setPreviewGame] = useState<GameData | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  const filteredGames = SAMPLE_GAMES.filter(game => {
+  // Convert database games to GameData format and add fallback sample games if empty
+  const games = dbGames.length > 0 ? dbGames.map(convertToGameData) : SAMPLE_GAMES;
+
+  const filteredGames = games.filter(game => {
     if (selectedFilter === 'all') return true;
     if (selectedFilter === '2d') return game.gameType === '2D';
     if (selectedFilter === '3d') return game.gameType === '3D';
@@ -164,10 +186,13 @@ export function ExplorePage() {
     setIsPreviewOpen(true);
   }, []);
 
-  const handleRemix = useCallback((game: GameData) => {
+  const handleRemix = useCallback(async (game: GameData) => {
+    // Track play count when remixing
+    await playGame(game.id);
+    
     // Create a new game based on the selected game
     const remixedGame = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: `remix-${game.id}-${Date.now()}`,
       title: `${game.title} (Remix)`,
       description: `Remixed version of ${game.title}`,
       prompt: `Create a game similar to: ${game.description}`,
@@ -181,7 +206,7 @@ export function ExplorePage() {
 
     setCurrentGame(remixedGame);
     router.push('/builder');
-  }, [router, setCurrentGame]);
+  }, [router, setCurrentGame, playGame]);
 
   const handleClosePreview = useCallback(() => {
     setIsPreviewOpen(false);
@@ -233,21 +258,44 @@ export function ExplorePage() {
             ))}
           </div>
 
+          {/* Error state */}
+          {error && (
+            <div className="text-center py-8 mb-8">
+              <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-6 max-w-md mx-auto">
+                <h3 className="text-red-300 font-mono font-bold mb-2">Error Loading Games</h3>
+                <p className="text-red-200 text-sm mb-4">{error}</p>
+                <RetroButton size="sm" variant="primary" onClick={refetch}>
+                  RETRY
+                </RetroButton>
+              </div>
+            </div>
+          )}
+
+          {/* Loading state */}
+          {isLoading && (
+            <div className="text-center py-16">
+              <LoadingSpinner />
+              <p className="text-gray-400 font-mono mt-4">Loading amazing games...</p>
+            </div>
+          )}
+
           {/* Games Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6 auto-rows-fr">
-            {filteredGames.map((game) => (
-              <GameCard
-                key={game.id}
-                game={game}
-                onPreview={handlePreview}
-                onRemix={handleRemix}
-                className="h-full"
-              />
-            ))}
-          </div>
+          {!isLoading && !error && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6 auto-rows-fr">
+              {filteredGames.map((game) => (
+                <GameCard
+                  key={game.id}
+                  game={game}
+                  onPreview={handlePreview}
+                  onRemix={handleRemix}
+                  className="h-full"
+                />
+              ))}
+            </div>
+          )}
 
           {/* Empty state */}
-          {filteredGames.length === 0 && (
+          {!isLoading && !error && filteredGames.length === 0 && (
             <div className="text-center py-16">
               <div className="w-24 h-24 bg-gray-800/50 rounded-lg flex items-center justify-center mx-auto mb-6">
                 <span className="text-gray-400 text-4xl">🎮</span>

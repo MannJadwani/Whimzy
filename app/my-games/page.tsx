@@ -4,8 +4,11 @@ import React, { useState } from 'react';
 import { PixelBackground } from '@/components/ui/PixelBackground';
 import { RetroNavbar } from '@/components/ui/RetroNavbar';
 import { RetroButton } from '@/components/ui/RetroButton';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useGames } from '@/context/AppContext';
 import { useRouter } from 'next/navigation';
+import { useUserGames, DatabaseGame } from '@/hooks/useUserGames';
+import { useSession } from 'next-auth/react';
 
 interface SavedGame {
   id: string;
@@ -19,55 +22,29 @@ interface SavedGame {
   thumbnail?: string;
 }
 
-// Mock data for demonstration - replace with actual user games
-const MOCK_USER_GAMES: SavedGame[] = [
-  {
-    id: '1',
-    title: 'My Space Adventure',
-    description: 'A thrilling space exploration game with alien encounters',
-    gameType: '2D',
-    createdAt: '2024-02-15',
-    lastModified: '2024-02-20',
-    plays: 45,
-    isPublic: true,
-    thumbnail: '/assets/landing-images/retro_alien_arcade_blaster.png'
-  },
-  {
-    id: '2',
-    title: 'Pixel Warrior',
-    description: 'A retro-style fighting game with epic battles',
-    gameType: '2D',
-    createdAt: '2024-02-10',
-    lastModified: '2024-02-18',
-    plays: 23,
-    isPublic: false,
-    thumbnail: '/assets/landing-images/samurai_bear_pixel_sword.png'
-  },
-  {
-    id: '3',
-    title: 'Magic Realm 3D',
-    description: 'An immersive 3D fantasy world with magical creatures',
-    gameType: '3D',
-    createdAt: '2024-02-05',
-    lastModified: '2024-02-12',
-    plays: 67,
-    isPublic: true,
-    thumbnail: '/assets/landing-images/wizard_gameboy_pixel.png'
-  }
-];
+// Database-backed games are now loaded via useUserGames hook
 
 const GameCard = ({ game, onEdit, onDelete, onToggleVisibility }: {
-  game: SavedGame;
-  onEdit: (game: SavedGame) => void;
+  game: DatabaseGame;
+  onEdit: (game: DatabaseGame) => void;
   onDelete: (gameId: string) => void;
   onToggleVisibility: (gameId: string, isPublic: boolean) => void;
-}) => (
+}) => {
+  const getGameTypeDisplay = (type: string) => {
+    switch (type) {
+      case 'THREE_D': return '3D';
+      case 'ADVANCED_TWO_D': return 'ADV 2D';
+      default: return '2D';
+    }
+  };
+
+  return (
   <div className="group relative bg-gray-900/80 backdrop-blur-sm border-2 border-purple-400/30 hover:border-cyan-400/60 rounded-lg overflow-hidden transition-all duration-300 transform hover:scale-[1.02] hover:-translate-y-1 shadow-lg hover:shadow-purple-500/25 flex flex-col w-full min-h-[400px]">
     {/* Thumbnail */}
     <div className="relative h-48 bg-gray-800 overflow-hidden">
-      {game.thumbnail ? (
+      {game.thumbnailUrl ? (
         <img
-          src={game.thumbnail}
+          src={game.thumbnailUrl}
           alt={game.title}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
         />
@@ -79,8 +56,8 @@ const GameCard = ({ game, onEdit, onDelete, onToggleVisibility }: {
       
       {/* Game type badge */}
       <div className="absolute top-3 left-3">
-        <span className={`px-2 py-1 text-xs font-mono font-bold rounded ${game.gameType === '2D' ? 'bg-purple-500/80 text-purple-100' : 'bg-cyan-500/80 text-cyan-100'}`}>
-          {game.gameType}
+        <span className={`px-2 py-1 text-xs font-mono font-bold rounded ${game.gameType === 'TWO_D' ? 'bg-purple-500/80 text-purple-100' : 'bg-cyan-500/80 text-cyan-100'}`}>
+          {getGameTypeDisplay(game.gameType)}
         </span>
       </div>
 
@@ -111,7 +88,8 @@ const GameCard = ({ game, onEdit, onDelete, onToggleVisibility }: {
 
       <div className="text-gray-400 text-xs font-mono mb-4 space-y-1">
         <div>Created: {new Date(game.createdAt).toLocaleDateString()}</div>
-        <div>Modified: {new Date(game.lastModified).toLocaleDateString()}</div>
+        <div>Modified: {new Date(game.updatedAt).toLocaleDateString()}</div>
+        <div>Views: {game.views} • Likes: {game.likes}</div>
       </div>
 
       {/* Action buttons */}
@@ -151,19 +129,21 @@ const GameCard = ({ game, onEdit, onDelete, onToggleVisibility }: {
     <div className="absolute bottom-1 right-1 w-2 h-2 bg-purple-400 opacity-60" />
   </div>
 );
+};
 
 export default function MyGamesPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const { setCurrentGame } = useGames();
-  const [games, setGames] = useState<SavedGame[]>(MOCK_USER_GAMES);
-  const [filter, setFilter] = useState<'all' | '2d' | '3d' | 'public' | 'private'>('all');
+  const { games, isLoading, error, updateGame, deleteGame, refetch } = useUserGames();
+  const [filter, setFilter] = useState<'all' | 'TWO_D' | 'THREE_D' | 'public' | 'private'>('all');
 
   const filteredGames = games.filter(game => {
     switch (filter) {
-      case '2d':
-        return game.gameType === '2D';
-      case '3d':
-        return game.gameType === '3D';
+      case 'TWO_D':
+        return game.gameType === 'TWO_D';
+      case 'THREE_D':
+        return game.gameType === 'THREE_D';
       case 'public':
         return game.isPublic;
       case 'private':
@@ -173,39 +153,62 @@ export default function MyGamesPage() {
     }
   });
 
-  const handleEdit = (game: SavedGame) => {
+  const handleEdit = (game: DatabaseGame) => {
     // Convert to the format expected by the game builder
     const gameForBuilder = {
       id: game.id,
       title: game.title,
-      description: game.description,
-      gameType: game.gameType,
-      gameCode: '', // This would be loaded from your backend
+      description: game.description || '',
+      prompt: game.prompt,
+      gameType: (game.gameType === 'THREE_D' ? '3D' : '2D') as '2D' | '3D',
+      gameCode: game.gameCode || '',
       isPublic: game.isPublic,
       createdAt: game.createdAt,
-      views: 0,
+      views: game.views,
       plays: game.plays
     };
     
     setCurrentGame(gameForBuilder);
-    router.push('/builder');
+    router.push(`/builder/${game.id}`);
   };
 
-  const handleDelete = (gameId: string) => {
+  const handleDelete = async (gameId: string) => {
     if (confirm('Are you sure you want to delete this game? This action cannot be undone.')) {
-      setGames(games.filter(game => game.id !== gameId));
+      try {
+        await deleteGame(gameId);
+      } catch (error) {
+        alert('Failed to delete game. Please try again.');
+      }
     }
   };
 
-  const handleToggleVisibility = (gameId: string, isPublic: boolean) => {
-    setGames(games.map(game => 
-      game.id === gameId ? { ...game, isPublic } : game
-    ));
+  const handleToggleVisibility = async (gameId: string, isPublic: boolean) => {
+    try {
+      await updateGame(gameId, { isPublic });
+    } catch (error) {
+      alert('Failed to update game visibility. Please try again.');
+    }
   };
 
   const handleCreateNew = () => {
     router.push('/builder');
   };
+
+  // Show loading state while checking authentication
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen relative flex items-center justify-center">
+        <PixelBackground />
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  // Redirect to signin if not authenticated
+  if (status === 'unauthenticated') {
+    router.push('/auth/signin');
+    return null;
+  }
 
   return (
     <div className="min-h-screen relative">
@@ -256,7 +259,7 @@ export default function MyGamesPage() {
               <div className="text-gray-400 text-sm font-mono">Total Plays</div>
             </div>
             <div className="bg-gray-900/60 backdrop-blur-sm border border-purple-400/30 rounded-lg p-4 text-center">
-              <div className="text-2xl font-mono font-bold text-yellow-300">{games.filter(g => g.gameType === '2D').length}/{games.filter(g => g.gameType === '3D').length}</div>
+              <div className="text-2xl font-mono font-bold text-yellow-300">{games.filter(g => g.gameType === 'TWO_D').length}/{games.filter(g => g.gameType === 'THREE_D').length}</div>
               <div className="text-gray-400 text-sm font-mono">2D / 3D</div>
             </div>
           </div>
@@ -265,8 +268,8 @@ export default function MyGamesPage() {
           <div className="flex flex-wrap justify-center gap-3 mb-8">
             {[
               { id: 'all', label: 'ALL GAMES' },
-              { id: '2d', label: '2D GAMES' },
-              { id: '3d', label: '3D GAMES' },
+              { id: 'TWO_D', label: '2D GAMES' },
+              { id: 'THREE_D', label: '3D GAMES' },
               { id: 'public', label: 'PUBLIC' },
               { id: 'private', label: 'PRIVATE' }
             ].map((filterOption) => (
@@ -281,8 +284,29 @@ export default function MyGamesPage() {
             ))}
           </div>
 
+          {/* Error state */}
+          {error && (
+            <div className="text-center py-8 mb-8">
+              <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-6 max-w-md mx-auto">
+                <h3 className="text-red-300 font-mono font-bold mb-2">Error Loading Games</h3>
+                <p className="text-red-200 text-sm mb-4">{error}</p>
+                <RetroButton size="sm" variant="primary" onClick={refetch}>
+                  RETRY
+                </RetroButton>
+              </div>
+            </div>
+          )}
+
+          {/* Loading state */}
+          {isLoading && (
+            <div className="text-center py-16">
+              <LoadingSpinner />
+              <p className="text-gray-400 font-mono mt-4">Loading your games...</p>
+            </div>
+          )}
+
           {/* Games Grid */}
-          {filteredGames.length > 0 ? (
+          {!isLoading && !error && filteredGames.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredGames.map((game) => (
                 <GameCard
@@ -294,7 +318,7 @@ export default function MyGamesPage() {
                 />
               ))}
             </div>
-          ) : (
+          ) : !isLoading && !error ? (
             /* Empty state */
             <div className="text-center py-16">
               <div className="w-24 h-24 bg-gray-800/50 rounded-lg flex items-center justify-center mx-auto mb-6">
@@ -319,7 +343,7 @@ export default function MyGamesPage() {
                 </RetroButton>
               )}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

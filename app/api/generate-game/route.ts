@@ -2,6 +2,8 @@ import { GoogleGenAI } from '@google/genai';
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/authOptions';
+import { prisma } from '@/lib/prisma';
+// import { GameType } from '@prisma/client';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
@@ -14,10 +16,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { prompt, gameType = '2d' } = await request.json();
+    const { prompt, gameType = '2d', title } = await request.json();
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
+    }
+
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email! }
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     // Create specialized prompts based on game type
@@ -96,13 +107,54 @@ Please provide ONLY the complete HTML code for the classic 2D game, no explanati
       contents: gameGenerationPrompt,
     });
 
-    let gameCode = response.text;
+    let gameCode = response.text || '';
 
     // Clean up the response to ensure it's pure HTML
     gameCode = gameCode.replace(/```html/g, '').replace(/```/g, '').trim();
 
+    // Convert gameType to database enum
+    const dbGameType = gameType === '3d' ? 'THREE_D' : 
+                      gameType === 'advanced-2d' ? 'ADVANCED_TWO_D' : 
+                      'TWO_D';
+
+    // Save game to database
+    const savedGame = await prisma.game.create({
+      data: {
+        userId: user.id,
+        title: title || `Game: ${prompt.slice(0, 50)}${prompt.length > 50 ? '...' : ''}`,
+        description: `Generated from prompt: ${prompt}`,
+        prompt,
+        gameType: dbGameType,
+        gameCode,
+        isPublic: false
+      }
+    });
+
+    // Update user stats - increment games created count
+    const currentUser = await prisma.user.findUnique({ where: { id: user.id } });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        gamesCreated: (currentUser?.gamesCreated || 0) + 1
+      }
+    });
+
+    // Track analytics
+    await prisma.analytics.create({
+      data: {
+        userId: user.id,
+        gameId: savedGame.id,
+        eventType: 'GAME_CREATED',
+        metadata: {
+          gameType,
+          promptLength: prompt.length
+        }
+      }
+    });
+
     return NextResponse.json({ 
       gameCode,
+      gameId: savedGame.id,
       success: true 
     });
 

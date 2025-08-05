@@ -7,6 +7,7 @@ import { ChatInterface } from '@/components/gameBuilder/ChatInterface';
 import { FloatingNav } from '@/components/gameBuilder/FloatingNav';
 import { PixelBackground } from '@/components/ui/PixelBackground';
 import { LoadingOverlay } from '@/components/ui/LoadingSpinner';
+import { WhimzyTerminal } from '@/components/ui/WhimzyTerminal';
 import { useGames, useAppState } from '@/context/AppContext';
 import { useGameGeneration } from '@/hooks/useGameGeneration';
 import { useGameSession } from '@/hooks/useGameSession';
@@ -288,7 +289,8 @@ export function GameBuilderPage({ gameId }: GameBuilderPageProps) {
       <PixelBackground />
       <FloatingNav gameCode={gameCode} onCopyCode={handleCopyCode} />
       
-      {isLoading && <LoadingOverlay message="LOADING GAME BUILDER..." />}
+      {/* Terminal Loading Popup for Game Builder */}
+      <WhimzyTerminal isVisible={isLoading} />
       
              <div className="relative z-10 h-full flex flex-col sm:flex-row">
          {/* Code Runner - Top on mobile, left on desktop */}

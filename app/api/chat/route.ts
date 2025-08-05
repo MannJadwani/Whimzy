@@ -2,6 +2,8 @@ import { GoogleGenAI } from '@google/genai';
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/authOptions';
+import { prisma } from '@/lib/prisma';
+// import { ChatRole } from '@prisma/client';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
@@ -14,10 +16,52 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { message, gameCode, chatHistory } = await request.json();
+    const { message, gameCode, chatHistory, gameId, sessionId } = await request.json();
 
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+    }
+
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email! }
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Get or create game session
+    let gameSession;
+    if (sessionId) {
+      gameSession = await prisma.gameSession.findUnique({
+        where: { id: sessionId },
+        include: { game: true }
+      });
+    }
+
+    if (!gameSession && gameId) {
+      // Find existing session for this game or create new one
+      gameSession = await prisma.gameSession.findFirst({
+        where: {
+          gameId,
+          userId: user.id,
+          isActive: true
+        },
+        include: { game: true }
+      });
+
+      if (!gameSession) {
+        gameSession = await prisma.gameSession.create({
+          data: {
+            gameId,
+            userId: user.id,
+            currentGameCode: gameCode,
+            isActive: true
+          },
+          include: { game: true }
+        });
+      }
     }
 
     // Create a context-aware prompt for iterative game development
@@ -68,10 +112,57 @@ Format your response like this:
       contents: fullPrompt,
     });
 
-    const aiResponse = response.text;
+    const aiResponse = response.text || '';
+
+    // Save user message to chat history if we have a session
+    if (gameSession) {
+      await prisma.chatHistory.create({
+        data: {
+          gameSessionId: gameSession.id,
+          message,
+          response: aiResponse,
+          gameCodeSnapshot: gameCode,
+          role: 'USER'
+        }
+      });
+
+      // Save AI response to chat history
+      await prisma.chatHistory.create({
+        data: {
+          gameSessionId: gameSession.id,
+          message: aiResponse,
+          response: '',
+          gameCodeSnapshot: gameCode,
+          role: 'ASSISTANT'
+        }
+      });
+
+      // Update session with latest game code and timestamp
+      await prisma.gameSession.update({
+        where: { id: gameSession.id },
+        data: {
+          currentGameCode: gameCode,
+          lastModified: new Date()
+        }
+      });
+
+      // Track analytics
+      await prisma.analytics.create({
+        data: {
+          userId: user.id,
+          gameId: gameSession.gameId,
+          eventType: 'CHAT_MESSAGE_SENT',
+          metadata: {
+            messageLength: message.length,
+            responseLength: aiResponse.length
+          }
+        }
+      });
+    }
 
     return NextResponse.json({ 
       response: aiResponse,
+      sessionId: gameSession?.id,
       success: true 
     });
 

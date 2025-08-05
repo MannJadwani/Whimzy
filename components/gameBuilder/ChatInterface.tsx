@@ -121,16 +121,16 @@ export function ChatInterface({
             <div className="flex items-center gap-2 mb-1">
               <span className="text-sm">🤖</span>
               <span className="text-xs text-gray-400 font-mono">Whimzy AI</span>
-              <span className="text-xs text-gray-500 font-mono">typing...</span>
+              <span className="text-xs text-gray-500 font-mono">working...</span>
             </div>
-                         <div className="bg-cyan-900/30 border border-cyan-400/30 text-cyan-100 mr-4 lg:mr-8 p-3 lg:p-4 rounded-lg">
+            <div className="bg-cyan-900/30 border border-cyan-400/30 text-cyan-100 mr-4 lg:mr-8 p-3 lg:p-4 rounded-lg">
               <div className="flex items-center gap-2">
                 <div className="flex space-x-1">
                   <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                   <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                   <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
-                <span className="text-xs font-mono">AI is thinking...</span>
+                <span className="text-xs font-mono">Opening terminal...</span>
               </div>
             </div>
           </div>
@@ -172,6 +172,9 @@ export function ChatInterface({
           </div>
         </form>
       </div>
+
+      {/* Terminal Loading Popup */}
+      <WhimzyTerminal isVisible={isLoading} />
     </div>
   );
 }
